@@ -1,15 +1,12 @@
 <?php
 namespace App\Services;
 
-use App\Enums\TokenAbility;
+use App\Models\Role;
 use App\Repositories\Interfaces\UserRepositoryInterface;
-use App\Models\User;
 use App\Traits\ApiResponse;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use App\Http\Resources\UserResource;
+use Exception;
 
 class UserService
 {
@@ -23,23 +20,41 @@ class UserService
 
     public function register($data)
     {
-        $data['password'] = Hash::make($data['password']);
-        $user = $this->userRepository->create($data);
-        return $this->successResponse($user, 'User registered successfully');
+        DB::beginTransaction();
+        try {
+            $data['password'] = Hash::make($data['password']);
+            $user = $this->userRepository->create($data);
+            $role = Role::find($data['role_id']);
+            $user->roles()->attach($data['role_id']);
+//            $user->assignRole($role->name);
+            DB::commit();
+            return $this->successResponse($user, 'User registered successfully');
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->errorResponse('Failed to register user', $e->getMessage(), 500);
+        }
     }
 
     public function login($data)
     {
-        $token = $this->userRepository->authenticate($data);
-        if ($token) {
-            return $this->successResponse(['token' => $token], 'Login successful');
+        try {
+            $token = $this->userRepository->authenticate($data);
+            if ($token) {
+                return $this->successResponse(['token' => $token], 'Login successful');
+            }
+            return $this->errorResponse('Unauthorized', null, 401);
+        } catch (Exception $e) {
+            return $this->errorResponse('Failed to login', $e->getMessage(), 500);
         }
-        return $this->errorResponse('Unauthorized', null,401);
     }
 
     public function logout($user)
     {
-        $user->token()->revoke();
-        return $this->successResponse('', 'User logout successfully');
+        try {
+            $user->token()->revoke();
+            return $this->successResponse(null, 'User logged out successfully');
+        } catch (Exception $e) {
+            return $this->errorResponse('Failed to logout user', $e->getMessage(), 500);
+        }
     }
 }

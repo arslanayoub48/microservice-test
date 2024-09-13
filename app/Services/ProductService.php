@@ -3,6 +3,8 @@ namespace App\Services;
 
 use App\Repositories\Interfaces\ProductRepositoryInterface;
 use App\Traits\ApiResponse;
+use Illuminate\Support\Facades\DB;
+use Exception;
 
 class ProductService
 {
@@ -21,17 +23,39 @@ class ProductService
 
     public function createProduct($data)
     {
-        return $this->successResponse($this->productRepository->create($data), 'Product created successfully');
+        DB::beginTransaction();
+        try {
+            $product = $this->productRepository->create($data);
+            DB::commit();
+            return $this->successResponse($product, 'Product created successfully');
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->errorResponse('Failed to create product', $e->getMessage(), 500);
+        }
     }
 
     public function updateProduct($id, $data)
     {
-        return $this->successResponse($this->productRepository->update($id, $data), 'Product updated successfully');
-    }
+        DB::beginTransaction();
+        try {
+            $product = $this->productRepository->update($id, $data);
+            DB::commit();
+            return $this->successResponse($product, 'Product updated successfully');
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->errorResponse('Failed to update product', $e->getMessage(), 500);
+        }    }
 
     public function deleteProduct($id)
     {
-        $this->productRepository->delete($id);
-        return $this->successResponse(null, 'Product deleted successfully');
+        DB::beginTransaction();
+        try {
+            $this->productRepository->delete($id);
+            DB::commit();
+            return $this->successResponse(null, 'Product deleted successfully');
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->errorResponse('Failed to delete product', $e->getMessage(), 500);
+        }
     }
 }
